@@ -1,101 +1,112 @@
 local HttpService = game:GetService("HttpService")
-local DICT_URL = "https://raw.githubusercontent.com/ItsXedy/word-hunt/refs/heads/main/WordList.txt" -- UPDATE THIS
+local DICT_URL = "https://raw.githubusercontent.com/ItsXedy/word-hunt/refs/heads/main/WordList.txt"
 
+-- GUI Setup
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BoggleSolverV3"
+ScreenGui.Name = "BoggleSolver"
 ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.ResetOnSpawn = false
 
--- Helper for Draggable behavior
-local function makeDraggable(frame)
-    frame.Active = true
-    frame.Draggable = true
-end
+-- Main Window
+local MainFrame = Instance.new("Frame")
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.fromRGB(60, 60, 60) -- Indicator border
+MainFrame.Position = UDim2.new(0.5, -110, 0.5, -160)
+MainFrame.Size = UDim2.new(0, 220, 0, 400) -- Increased height for sliders
+MainFrame.Visible = false
+MainFrame.Active = true
+MainFrame.Draggable = true
 
--- 1. FLOATING TOGGLE BUTTON
+-- DRAG HANDLE (Indicates where to move the box)
+local DragHandle = Instance.new("Frame")
+DragHandle.Size = UDim2.new(1, 0, 0, 20)
+DragHandle.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+DragHandle.Parent = MainFrame
+local DragLabel = Instance.new("TextLabel")
+DragLabel.Size = UDim2.new(1, 0, 1, 0)
+DragLabel.Text = ":::: HOLD TO MOVE ::::"
+DragLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
+DragLabel.TextSize = 10
+DragLabel.BackgroundTransparency = 1
+DragLabel.Parent = DragHandle
+
+-- Toggle Button
 local Toggle = Instance.new("TextButton")
-Toggle.Name = "Launcher"
 Toggle.Parent = ScreenGui
-Toggle.Size = UDim2.new(0, 60, 0, 60)
+Toggle.Size = UDim2.new(0, 80, 0, 35)
 Toggle.Position = UDim2.new(0, 10, 0.5, 0)
 Toggle.BackgroundColor3 = Color3.fromRGB(0, 255, 136)
-Toggle.BackgroundTransparency = 0.3
-Toggle.Text = "B"
+Toggle.BorderSizePixel = 2
+Toggle.BorderColor3 = Color3.fromRGB(255, 255, 255) -- Border for move indication
+Toggle.Text = "SOLVER"
 Toggle.Font = Enum.Font.SourceSansBold
-Toggle.TextSize = 30
-Toggle.TextColor3 = Color3.new(0,0,0)
-makeDraggable(Toggle)
+Toggle.Draggable = true -- Allows you to move the toggle button too
+Toggle.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
 
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(1, 0)
-Corner.Parent = Toggle
-
--- 2. LEFT MENU (Controls)
-local LeftMenu = Instance.new("Frame")
-LeftMenu.Name = "LeftMenu"
-LeftMenu.Parent = ScreenGui
-LeftMenu.Size = UDim2.new(0, 150, 0, 220)
-LeftMenu.Position = UDim2.new(0.5, -220, 0.5, -110)
-LeftMenu.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-LeftMenu.BackgroundTransparency = 0.5
-LeftMenu.Visible = false
-makeDraggable(LeftMenu)
-
--- 3. RIGHT BOX (Results)
-local RightBox = Instance.new("Frame")
-RightBox.Name = "RightBox"
-RightBox.Parent = ScreenGui
-RightBox.Size = UDim2.new(0, 180, 0, 350)
-RightBox.Position = UDim2.new(0.5, -60, 0.5, -175)
-RightBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-RightBox.BackgroundTransparency = 0.5
-RightBox.Visible = false
-makeDraggable(RightBox)
-
--- Toggle Logic
-Toggle.MouseButton1Click:Connect(function()
-    LeftMenu.Visible = not LeftMenu.Visible
-    RightBox.Visible = LeftMenu.Visible
-end)
-
--- LEFT MENU CONTENT
-local Status = Instance.new("TextLabel", LeftMenu)
+-- Status
+local Status = Instance.new("TextLabel")
+Status.Parent = MainFrame
+Status.Position = UDim2.new(0, 0, 0, 20)
 Status.Size = UDim2.new(1, 0, 0, 30)
 Status.Text = "Loading..."
 Status.TextColor3 = Color3.new(1,1,1)
 Status.BackgroundTransparency = 1
 
-local RefreshBtn = Instance.new("TextButton", LeftMenu)
-RefreshBtn.Size = UDim2.new(0.9, 0, 0, 40)
-RefreshBtn.Position = UDim2.new(0.05, 0, 0, 40)
-RefreshBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 136)
-RefreshBtn.Text = "REFRESH"
-RefreshBtn.Font = Enum.Font.SourceSansBold
+-- SLIDERS
+local minLen = 3
+local maxLen = 16
 
--- Length Filter UI
-local MinLabel = Instance.new("TextLabel", LeftMenu)
-MinLabel.Position = UDim2.new(0, 10, 0, 90)
-MinLabel.Text = "Min Length: 3"
-MinLabel.TextColor3 = Color3.new(1,1,1)
-MinLabel.Size = UDim2.new(1, -20, 0, 20)
-MinLabel.BackgroundTransparency = 1
+local function createSlider(name, pos, default, min, max)
+    local label = Instance.new("TextLabel", MainFrame)
+    label.Size = UDim2.new(1, 0, 0, 20)
+    label.Position = pos
+    label.Text = name .. ": " .. default
+    label.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+    label.BackgroundTransparency = 1
+    
+    local btn = Instance.new("TextButton", label)
+    btn.Size = UDim2.new(0.8, 0, 0, 15)
+    btn.Position = UDim2.new(0.1, 0, 1, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    btn.Text = "Tap to Adjust"
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.TextSize = 10
 
-local MinInput = Instance.new("TextBox", LeftMenu)
-MinInput.Position = UDim2.new(0.1, 0, 0, 115)
-MinInput.Size = UDim2.new(0.8, 0, 0, 30)
-MinInput.Text = "3"
-MinInput.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-MinInput.TextColor3 = Color3.new(1,1,1)
+    local val = default
+    btn.MouseButton1Click:Connect(function()
+        val = val + 1
+        if val > max then val = min end
+        label.Text = name .. ": " .. val
+        if name == "Min" then minLen = val else maxLen = val end
+    end)
+    return label
+end
 
--- RIGHT BOX CONTENT
-local Scroll = Instance.new("ScrollingFrame", RightBox)
-Scroll.Size = UDim2.new(1, -10, 1, -10)
-Scroll.Position = UDim2.new(0, 5, 0, 5)
-Scroll.BackgroundTransparency = 1
-Scroll.CanvasSize = UDim2.new(0,0,0,0)
-local List = Instance.new("UIListLayout", Scroll)
+createSlider("Min", UDim2.new(0, 0, 0, 50), 3, 2, 10)
+createSlider("Max", UDim2.new(0, 0, 0, 90), 16, 3, 16)
 
--- SOLVER CORE
+-- Results List
+local ResultsBox = Instance.new("ScrollingFrame")
+ResultsBox.Parent = MainFrame
+ResultsBox.Position = UDim2.new(0, 5, 0, 140)
+ResultsBox.Size = UDim2.new(1, -10, 1, -185)
+ResultsBox.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+ResultsBox.BorderSizePixel = 0
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = ResultsBox
+
+-- Solve Button
+local SolveBtn = Instance.new("TextButton")
+SolveBtn.Parent = MainFrame
+SolveBtn.Position = UDim2.new(0, 5, 1, -40)
+SolveBtn.Size = UDim2.new(1, -10, 0, 35)
+SolveBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 136)
+SolveBtn.Text = "AUTO-SOLVE"
+SolveBtn.Font = Enum.Font.SourceSansBold
+
+-- DICTIONARY LOADING
 local Trie = {c = {}, e = false}
 local function insert(word)
     local curr = Trie
@@ -116,22 +127,24 @@ task.spawn(function()
             insert(string.upper(word))
             count = count + 1
         end
-        Status.Text = "READY: " .. count
+        Status.Text = "READY: " .. count .. " WORDS"
     else
-        Status.Text = "LOAD ERROR"
+        Status.Text = "LOAD FAILED!"
     end
 end)
 
+-- SOLVER LOGIC
 local function getBoard()
     local board = {}
-    local pieces = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ScreenGui"):FindFirstChild("PiecesFrame")
+    local pg = game:GetService("Players").LocalPlayer.PlayerGui
+    local pieces = pg:FindFirstChild("ScreenGui") and pg.ScreenGui:FindFirstChild("PiecesFrame")
+    
     if pieces then
         for r = 1, 4 do
             for c = 1, 4 do
-                local name = "R" .. r .. "C" .. c
-                local p = pieces:FindFirstChild(name)
-                local txt = p and p:FindFirstChild("TextLabel") and p.TextLabel.Text or ""
-                table.insert(board, string.upper(txt))
+                local p = pieces:FindFirstChild("R"..r.."C"..c)
+                local l = p and p:FindFirstChild("TextLabel") and p.TextLabel.Text or ""
+                table.insert(board, string.upper(l))
             end
         end
     end
@@ -144,11 +157,10 @@ local function solve()
     local board = getBoard()
     local found = {}
     local visited = {}
-    local minLen = tonumber(MinInput.Text) or 3
-
+    
     local function dfs(idx, node, word)
-        if node.e and #word >= minLen then found[word] = true end
-        if #word >= 16 then return end
+        if node.e and #word >= minLen and #word <= maxLen then found[word] = true end
+        if #word >= maxLen then return end
         visited[idx] = true
         local r, c = math.floor((idx-1)/4), (idx-1)%4
         for _, d in pairs(ds) do
@@ -166,23 +178,19 @@ local function solve()
         if board[i] ~= "" and Trie.c[board[i]] then dfs(i, Trie.c[board[i]], board[i]) end
     end
 
-    for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextLabel") then v:Destroy() end end
+    for _, v in pairs(ResultsBox:GetChildren()) do if v:IsA("TextLabel") then v:Destroy() end end
     local sorted = {}
     for w in pairs(found) do table.insert(sorted, w) end
     table.sort(sorted, function(a,b) return #a > #b end)
     
     for _, w in pairs(sorted) do
-        local l = Instance.new("TextLabel", Scroll)
-        l.Size = UDim2.new(1, 0, 0, 30)
+        local l = Instance.new("TextLabel", ResultsBox)
+        l.Size = UDim2.new(1, 0, 0, 25)
         l.Text = w
-        l.TextColor3 = Color3.fromRGB(0, 255, 136)
+        l.TextColor3 = Color3.new(1,1,1)
         l.BackgroundTransparency = 1
-        l.TextSize = 18
     end
-    Scroll.CanvasSize = UDim2.new(0, 0, 0, #sorted * 30)
+    ResultsBox.CanvasSize = UDim2.new(0,0,0, #sorted * 25)
 end
 
-RefreshBtn.MouseButton1Click:Connect(solve)
-MinInput:GetPropertyChangedSignal("Text"):Connect(function()
-    MinLabel.Text = "Min Length: " .. (tonumber(MinInput.Text) or 3)
-end)
+SolveBtn.MouseButton1Click:Connect(solve)
