@@ -1,4 +1,5 @@
 local HttpService = game:GetService("HttpService")
+local VIM = game:GetService("VirtualInputManager")
 local DICT_URL = "https://raw.githubusercontent.com/ItsXedy/word-hunt/refs/heads/main/WordList.txt"
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -124,21 +125,24 @@ end)
 
 local function getPieces()
     local pg = game:GetService("Players").LocalPlayer.PlayerGui
-    -- Looking for the board in ScreenGui -> PiecesFrame
+    -- Flexible search for the board
     local sg = pg:FindFirstChild("ScreenGui")
-    return sg and sg:FindFirstChild("PiecesFrame")
+    if sg then
+        return sg:FindFirstChild("PiecesFrame")
+    end
+    return nil
 end
 
 local function solve()
     local pieces = getPieces()
-    if not pieces then Status.Text = "Status: NO BOARD"; return end
+    if not pieces then Status.Text = "Status: BOARD ERROR"; return end
     
     local board = {}
     for r = 1, 4 do
         for c = 1, 4 do
             local p = pieces:FindFirstChild("R"..r.."C"..c)
-            local txt = p and p:FindFirstChild("TextLabel") and p.TextLabel.Text:upper() or ""
-            table.insert(board, txt)
+            local label = p and p:FindFirstChild("TextLabel")
+            table.insert(board, label and label.Text:upper() or "")
         end
     end
 
@@ -187,13 +191,14 @@ local function solve()
     Status.Text = "Status: FOUND " .. #sorted
 end
 
--- FORCED TOUCH INTEREST METHOD
+-- THE FIXED DRAG FUNCTION
 local function submitTop()
     if not currentTopPath or #currentTopPath == 0 then return end
     local pieces = getPieces()
-    if not pieces then return end
+    if not pieces then Status.Text = "Status: NO TILES"; return end
 
-    Status.Text = "Status: SUBMITTING"
+    local tid = math.random(1000, 9999)
+    Status.Text = "Status: SWIPING..."
 
     for i, index in ipairs(currentTopPath) do
         local r = math.floor((index-1)/4) + 1
@@ -201,22 +206,33 @@ local function submitTop()
         local tile = pieces:FindFirstChild("R"..r.."C"..c)
         
         if tile then
-            -- Highlight tile white
-            local oldColor = tile.BackgroundColor3
-            tile.BackgroundColor3 = Color3.new(1, 1, 1)
+            local pos = tile.AbsolutePosition + (tile.AbsoluteSize / 2)
             
-            -- Force touch if firetouchinterest exists (Standard for mobile executors)
-            if firetouchinterest then
-                firetouchinterest(tile, 0) -- Touch Start
-                task.wait(0.03)
-                firetouchinterest(tile, 1) -- Touch End
+            if i == 1 then
+                VIM:SendTouchEvent(tid, Enum.UserInputState.Begin, pos.X, pos.Y)
+            else
+                VIM:SendTouchEvent(tid, Enum.UserInputState.Change, pos.X, pos.Y)
             end
             
-            task.delay(0.2, function() tile.BackgroundColor3 = oldColor end)
-            task.wait(0.05) 
+            -- Feedback highlight
+            local old = tile.BackgroundColor3
+            tile.BackgroundColor3 = Color3.new(1, 1, 1)
+            task.delay(0.2, function() tile.BackgroundColor3 = old end)
+            
+            task.wait(0.04) 
         end
     end
     
+    -- Lift up at the very last position
+    local lastIdx = currentTopPath[#currentTopPath]
+    local lr = math.floor((lastIdx-1)/4) + 1
+    local lc = (lastIdx-1)%4 + 1
+    local lastTile = pieces:FindFirstChild("R"..lr.."C"..lc)
+    if lastTile then
+        local lp = lastTile.AbsolutePosition + (lastTile.AbsoluteSize / 2)
+        VIM:SendTouchEvent(tid, Enum.UserInputState.End, lp.X, lp.Y)
+    end
+
     task.wait(0.1)
     solve()
     Status.Text = "Status: READY"
