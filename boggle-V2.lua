@@ -1,4 +1,5 @@
 local HttpService = game:GetService("HttpService")
+local VIM = game:GetService("VirtualInputManager")
 local DICT_URL = "https://raw.githubusercontent.com/ItsXedy/word-hunt/refs/heads/main/WordList.txt"
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -6,7 +7,7 @@ ScreenGui.Name = "BoggleSolver"
 ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.ResetOnSpawn = false
 
--- Helper for sleek windows
+-- Function to create a sleek window
 local function createBox(name, size, pos, accent)
     local frame = Instance.new("Frame", ScreenGui)
     frame.Name = name
@@ -41,13 +42,14 @@ end
 local Controls = createBox("Controls", UDim2.new(0, 160, 0, 220), UDim2.new(0.05, 0, 0.3, 0), Color3.fromRGB(0, 255, 136))
 local Results = createBox("Results", UDim2.new(0, 140, 0, 280), UDim2.new(0.8, 0, 0.3, 0), Color3.fromRGB(255, 255, 255))
 
--- Toggle Button
+-- Floating Toggle Button
 local Toggle = Instance.new("TextButton", ScreenGui)
 Toggle.Size = UDim2.new(0, 50, 0, 50)
 Toggle.Position = UDim2.new(0, 10, 0.5, -25)
 Toggle.BackgroundColor3 = Color3.fromRGB(0, 255, 136)
 Toggle.Text = "H"
 Toggle.Font = Enum.Font.SourceSansBold
+Toggle.TextColor3 = Color3.new(0,0,0)
 Toggle.TextSize = 24
 Toggle.Draggable = true
 Instance.new("UICorner", Toggle).CornerRadius = UDim.new(0, 10)
@@ -57,7 +59,7 @@ Toggle.MouseButton1Click:Connect(function()
     Results.Visible = not Results.Visible
 end)
 
--- UI Styling for Buttons
+-- Button Styling
 local function styleBtn(txt, pos, parent, color)
     local b = Instance.new("TextButton", parent)
     b.Size = UDim2.new(1, -20, 0, 30)
@@ -72,10 +74,8 @@ local function styleBtn(txt, pos, parent, color)
 end
 
 local minLen, maxLen = 3, 16
-local currentTopWord = nil
 local currentTopPath = {}
 
--- Controls Content
 local Status = Instance.new("TextLabel", Controls)
 Status.Position = UDim2.new(0, 5, 0, 25)
 Status.Size = UDim2.new(1, -10, 0, 20)
@@ -102,15 +102,15 @@ end)
 local SubmitBtn = styleBtn("SUBMIT TOP", UDim2.new(0, 10, 0, 130), Controls, Color3.fromRGB(255, 255, 255))
 local SolveBtn = styleBtn("AUTO-SOLVE", UDim2.new(0, 10, 0, 175), Controls, Color3.fromRGB(0, 255, 136))
 
--- Results Scroll
 local Scroll = Instance.new("ScrollingFrame", Results)
 Scroll.Position = UDim2.new(0, 5, 0, 30)
 Scroll.Size = UDim2.new(1, -10, 1, -40)
 Scroll.BackgroundTransparency = 1
 Scroll.ScrollBarThickness = 2
+Scroll.CanvasSize = UDim2.new(0,0,0,0)
 local List = Instance.new("UIListLayout", Scroll)
 
--- Solver & Pathfinding Logic
+-- Solver Logic
 local Trie = {c = {}, e = false}
 local function insert(word)
     local curr = Trie
@@ -129,7 +129,7 @@ task.spawn(function()
         for word, _ in pairs(data.Words or data) do insert(string.upper(word)) end
         Status.Text = "READY"
     else
-        Status.Text = "ERROR"
+        Status.Text = "LOAD ERROR"
     end
 end)
 
@@ -140,13 +140,13 @@ end
 
 local function solve()
     local pieces = getPieces()
-    if not pieces then return end
+    if not pieces then Status.Text = "NO BOARD"; return end
     
     local board = {}
     for r = 1, 4 do
         for c = 1, 4 do
             local p = pieces:FindFirstChild("R"..r.."C"..c)
-            table.insert(board, p and p.TextLabel.Text:upper() or "")
+            table.insert(board, p and p:FindFirstChild("TextLabel") and p.TextLabel.Text:upper() or "")
         end
     end
 
@@ -155,15 +155,11 @@ local function solve()
     
     local function dfs(idx, node, word, visited, path)
         if node.e and #word >= minLen and #word <= maxLen then
-            if not found[word] or #path < #found[word].path then
-                found[word] = {word = word, path = {unpack(path)}}
-            end
+            if not found[word] then found[word] = {word = word, path = {unpack(path)}} end
         end
         if #word >= maxLen then return end
-        
         visited[idx] = true
         local r, c = math.floor((idx-1)/4), (idx-1)%4
-        
         for _, d in pairs(ds) do
             local nr, nc = r + d[1], c + d[2]
             local ni = (nr * 4) + nc + 1
@@ -180,21 +176,15 @@ local function solve()
     end
 
     for i = 1, 16 do
-        if board[i] ~= "" and Trie.c[board[i]] then 
-            dfs(i, Trie.c[board[i]], board[i], {}, {i}) 
-        end
+        if board[i] ~= "" and Trie.c[board[i]] then dfs(i, Trie.c[board[i]], board[i], {}, {i}) end
     end
 
-    -- Update Results
     for _, v in pairs(Scroll:GetChildren()) do if v:IsA("TextLabel") then v:Destroy() end end
     local sorted = {}
     for _, data in pairs(found) do table.insert(sorted, data) end
     table.sort(sorted, function(a,b) return #a.word > #b.word end)
 
-    if #sorted > 0 then
-        currentTopWord = sorted[1].word
-        currentTopPath = sorted[1].path
-    end
+    if #sorted > 0 then currentTopPath = sorted[1].path end
 
     for _, data in pairs(sorted) do
         local l = Instance.new("TextLabel", Scroll)
@@ -202,42 +192,40 @@ local function solve()
         l.BackgroundTransparency = 1; l.Font = Enum.Font.Code; l.TextSize = 14; l.TextXAlignment = Enum.TextXAlignment.Left
     end
     Scroll.CanvasSize = UDim2.new(0,0,0, #sorted * 20)
+    Status.Text = "FOUND: " .. #sorted
 end
 
--- Virtual Input Function
+-- Touch-Drag Submission
 local function submitTop()
     if not currentTopPath or #currentTopPath == 0 then return end
     local pieces = getPieces()
     if not pieces then return end
 
-    Status.Text = "Submitting: " .. currentTopWord
-    
-    for _, index in ipairs(currentTopPath) do
+    local touchId = math.random(1000, 9999)
+
+    for i, index in ipairs(currentTopPath) do
         local r = math.floor((index-1)/4) + 1
         local c = (index-1)%4 + 1
-        local btn = pieces:FindFirstChild("R"..r.."C"..c)
+        local tile = pieces:FindFirstChild("R"..r.."C"..c)
         
-        if btn then
-            -- Simulate the click logic of the game
-            -- This assumes the game uses standard button clicks or touches
-            local pos = btn.AbsolutePosition + (btn.AbsoluteSize / 2)
-            -- Use VirtualInputManager if your executor supports it, or just call the click
-            if btn:FindFirstChild("Button") then -- Adjust if game uses a sub-button
-                btn.Button:Activate()
+        if tile then
+            local center = tile.AbsolutePosition + (tile.AbsoluteSize / 2)
+            
+            if i == 1 then
+                VIM:SendTouchEvent(touchId, Enum.UserInputState.Begin, center.X, center.Y)
+            elseif i == #currentTopPath then
+                VIM:SendTouchEvent(touchId, Enum.UserInputState.Change, center.X, center.Y)
+                task.wait(0.02)
+                VIM:SendTouchEvent(touchId, Enum.UserInputState.End, center.X, center.Y)
             else
-                -- Generic click simulation
-                pcall(function()
-                    for _, connection in pairs(getconnections(btn.MouseButton1Click)) do
-                        connection:Fire()
-                    end
-                end)
+                VIM:SendTouchEvent(touchId, Enum.UserInputState.Change, center.X, center.Y)
             end
-            task.wait(0.05) -- Tiny delay to look human/register
+            
+            task.wait(0.05) 
         end
     end
-    -- Reset for next word
-    currentTopPath = {}
-    solve() -- Refresh list
+    task.wait(0.1)
+    solve()
 end
 
 SolveBtn.MouseButton1Click:Connect(solve)
