@@ -7,10 +7,9 @@ ScreenGui.Name = "BoggleSolver"
 ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.ResetOnSpawn = false
 
--- Function to create a sleek window
+-- UI Creator
 local function createBox(name, size, pos, accent)
     local frame = Instance.new("Frame", ScreenGui)
-    frame.Name = name
     frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
     frame.BackgroundTransparency = 0.1
     frame.BorderSizePixel = 0
@@ -38,11 +37,11 @@ local function createBox(name, size, pos, accent)
     return frame
 end
 
--- Create Windows
+-- Setup Boxes
 local Controls = createBox("Controls", UDim2.new(0, 160, 0, 220), UDim2.new(0.05, 0, 0.3, 0), Color3.fromRGB(0, 255, 136))
 local Results = createBox("Results", UDim2.new(0, 140, 0, 280), UDim2.new(0.8, 0, 0.3, 0), Color3.fromRGB(255, 255, 255))
 
--- Floating Toggle Button
+-- Floating Toggle
 local Toggle = Instance.new("TextButton", ScreenGui)
 Toggle.Size = UDim2.new(0, 50, 0, 50)
 Toggle.Position = UDim2.new(0, 10, 0.5, -25)
@@ -59,7 +58,7 @@ Toggle.MouseButton1Click:Connect(function()
     Results.Visible = not Results.Visible
 end)
 
--- Button Styling
+-- Buttons Setup
 local function styleBtn(txt, pos, parent, color)
     local b = Instance.new("TextButton", parent)
     b.Size = UDim2.new(1, -20, 0, 30)
@@ -107,7 +106,6 @@ Scroll.Position = UDim2.new(0, 5, 0, 30)
 Scroll.Size = UDim2.new(1, -10, 1, -40)
 Scroll.BackgroundTransparency = 1
 Scroll.ScrollBarThickness = 2
-Scroll.CanvasSize = UDim2.new(0,0,0,0)
 local List = Instance.new("UIListLayout", Scroll)
 
 -- Solver Logic
@@ -127,9 +125,9 @@ task.spawn(function()
     if success then
         local data = HttpService:JSONDecode(result)
         for word, _ in pairs(data.Words or data) do insert(string.upper(word)) end
-        Status.Text = "READY"
+        Status.Text = "Status: READY"
     else
-        Status.Text = "LOAD ERROR"
+        Status.Text = "Status: LOAD ERROR"
     end
 end)
 
@@ -140,7 +138,7 @@ end
 
 local function solve()
     local pieces = getPieces()
-    if not pieces then Status.Text = "NO BOARD"; return end
+    if not pieces then Status.Text = "Status: NO BOARD"; return end
     
     local board = {}
     for r = 1, 4 do
@@ -192,15 +190,16 @@ local function solve()
         l.BackgroundTransparency = 1; l.Font = Enum.Font.Code; l.TextSize = 14; l.TextXAlignment = Enum.TextXAlignment.Left
     end
     Scroll.CanvasSize = UDim2.new(0,0,0, #sorted * 20)
-    Status.Text = "FOUND: " .. #sorted
+    Status.Text = "Status: FOUND " .. #sorted
 end
 
--- Touch-Drag Submission
+-- THE DRAG-TO-SUBMIT FUNCTION
 local function submitTop()
     if not currentTopPath or #currentTopPath == 0 then return end
     local pieces = getPieces()
     if not pieces then return end
 
+    Status.Text = "Status: DRAGGING..."
     local touchId = math.random(1000, 9999)
 
     for i, index in ipairs(currentTopPath) do
@@ -221,11 +220,17 @@ local function submitTop()
                 VIM:SendTouchEvent(touchId, Enum.UserInputState.Change, center.X, center.Y)
             end
             
-            task.wait(0.05) 
+            -- Visual feedback (tile flashes white)
+            local oldColor = tile.BackgroundColor3
+            tile.BackgroundColor3 = Color3.new(1, 1, 1)
+            task.delay(0.15, function() tile.BackgroundColor3 = oldColor end)
+            
+            task.wait(0.06) 
         end
     end
-    task.wait(0.1)
+    task.wait(0.2)
     solve()
+    Status.Text = "Status: READY"
 end
 
 SolveBtn.MouseButton1Click:Connect(solve)
