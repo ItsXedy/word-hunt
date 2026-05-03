@@ -1,5 +1,4 @@
 local HttpService = game:GetService("HttpService")
-local VIM = game:GetService("VirtualInputManager")
 local DICT_URL = "https://raw.githubusercontent.com/ItsXedy/word-hunt/refs/heads/main/WordList.txt"
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -18,12 +17,10 @@ local function createBox(name, size, pos, accent)
     frame.Visible = false
     frame.Active = true
     frame.Draggable = true
-
     local border = Instance.new("Frame", frame)
     border.Size = UDim2.new(1, 0, 0, 2)
     border.BackgroundColor3 = accent
     border.BorderSizePixel = 0
-
     local title = Instance.new("TextLabel", frame)
     title.Size = UDim2.new(1, -10, 0, 25)
     title.Position = UDim2.new(0, 5, 0, 2)
@@ -33,15 +30,12 @@ local function createBox(name, size, pos, accent)
     title.Font = Enum.Font.Code
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.BackgroundTransparency = 1
-
     return frame
 end
 
--- Setup Boxes
 local Controls = createBox("Controls", UDim2.new(0, 160, 0, 220), UDim2.new(0.05, 0, 0.3, 0), Color3.fromRGB(0, 255, 136))
 local Results = createBox("Results", UDim2.new(0, 140, 0, 280), UDim2.new(0.8, 0, 0.3, 0), Color3.fromRGB(255, 255, 255))
 
--- Floating Toggle
 local Toggle = Instance.new("TextButton", ScreenGui)
 Toggle.Size = UDim2.new(0, 50, 0, 50)
 Toggle.Position = UDim2.new(0, 10, 0.5, -25)
@@ -52,13 +46,11 @@ Toggle.TextColor3 = Color3.new(0,0,0)
 Toggle.TextSize = 24
 Toggle.Draggable = true
 Instance.new("UICorner", Toggle).CornerRadius = UDim.new(0, 10)
-
 Toggle.MouseButton1Click:Connect(function()
     Controls.Visible = not Controls.Visible
     Results.Visible = not Results.Visible
 end)
 
--- Buttons Setup
 local function styleBtn(txt, pos, parent, color)
     local b = Instance.new("TextButton", parent)
     b.Size = UDim2.new(1, -20, 0, 30)
@@ -108,7 +100,6 @@ Scroll.BackgroundTransparency = 1
 Scroll.ScrollBarThickness = 2
 local List = Instance.new("UIListLayout", Scroll)
 
--- Solver Logic
 local Trie = {c = {}, e = false}
 local function insert(word)
     local curr = Trie
@@ -133,7 +124,9 @@ end)
 
 local function getPieces()
     local pg = game:GetService("Players").LocalPlayer.PlayerGui
-    return pg:FindFirstChild("ScreenGui") and pg.ScreenGui:FindFirstChild("PiecesFrame")
+    -- Looking for the board in ScreenGui -> PiecesFrame
+    local sg = pg:FindFirstChild("ScreenGui")
+    return sg and sg:FindFirstChild("PiecesFrame")
 end
 
 local function solve()
@@ -144,7 +137,8 @@ local function solve()
     for r = 1, 4 do
         for c = 1, 4 do
             local p = pieces:FindFirstChild("R"..r.."C"..c)
-            table.insert(board, p and p:FindFirstChild("TextLabel") and p.TextLabel.Text:upper() or "")
+            local txt = p and p:FindFirstChild("TextLabel") and p.TextLabel.Text:upper() or ""
+            table.insert(board, txt)
         end
     end
 
@@ -193,14 +187,13 @@ local function solve()
     Status.Text = "Status: FOUND " .. #sorted
 end
 
--- THE DRAG-TO-SUBMIT FUNCTION
+-- FORCED TOUCH INTEREST METHOD
 local function submitTop()
     if not currentTopPath or #currentTopPath == 0 then return end
     local pieces = getPieces()
     if not pieces then return end
 
-    Status.Text = "Status: DRAGGING..."
-    local touchId = math.random(1000, 9999)
+    Status.Text = "Status: SUBMITTING"
 
     for i, index in ipairs(currentTopPath) do
         local r = math.floor((index-1)/4) + 1
@@ -208,27 +201,23 @@ local function submitTop()
         local tile = pieces:FindFirstChild("R"..r.."C"..c)
         
         if tile then
-            local center = tile.AbsolutePosition + (tile.AbsoluteSize / 2)
-            
-            if i == 1 then
-                VIM:SendTouchEvent(touchId, Enum.UserInputState.Begin, center.X, center.Y)
-            elseif i == #currentTopPath then
-                VIM:SendTouchEvent(touchId, Enum.UserInputState.Change, center.X, center.Y)
-                task.wait(0.02)
-                VIM:SendTouchEvent(touchId, Enum.UserInputState.End, center.X, center.Y)
-            else
-                VIM:SendTouchEvent(touchId, Enum.UserInputState.Change, center.X, center.Y)
-            end
-            
-            -- Visual feedback (tile flashes white)
+            -- Highlight tile white
             local oldColor = tile.BackgroundColor3
             tile.BackgroundColor3 = Color3.new(1, 1, 1)
-            task.delay(0.15, function() tile.BackgroundColor3 = oldColor end)
             
-            task.wait(0.06) 
+            -- Force touch if firetouchinterest exists (Standard for mobile executors)
+            if firetouchinterest then
+                firetouchinterest(tile, 0) -- Touch Start
+                task.wait(0.03)
+                firetouchinterest(tile, 1) -- Touch End
+            end
+            
+            task.delay(0.2, function() tile.BackgroundColor3 = oldColor end)
+            task.wait(0.05) 
         end
     end
-    task.wait(0.2)
+    
+    task.wait(0.1)
     solve()
     Status.Text = "Status: READY"
 end
